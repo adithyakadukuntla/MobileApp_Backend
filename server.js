@@ -31,6 +31,7 @@ const eventSchema = new mongoose.Schema({
   contact: { type: String, required: true },
   additionalInfo: { type: String, required: true },
   audi: { type: String, required: true },
+  useremail: { type: String, required: true },
 });
 
 const Event = mongoose.model("Event", eventSchema);
@@ -77,7 +78,8 @@ app.post("/book", async (req, res) => {
 //delete the event 
 app.delete('/events/:id',async(req,res)=>{
     const id = req.params.id;
-    console.log(id)
+    //console.log(id)
+
     try{
         await Event.findByIdAndDelete(id);
         res.json({message:"Event deleted successfully!"});
