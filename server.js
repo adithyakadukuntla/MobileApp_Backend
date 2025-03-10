@@ -74,6 +74,18 @@ app.post("/book", async (req, res) => {
   }
 });
 
+//delete the event 
+app.delete('/events/:id',async(req,res)=>{
+    const id = req.params.id;
+    console.log(id)
+    try{
+        await Event.findByIdAndDelete(id);
+        res.json({message:"Event deleted successfully!"});
+    }catch(err){
+        res.status(500).json({error:"Error deleting event"})
+    } 
+})
+
 // Start Server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
