@@ -17,7 +17,7 @@ This is the backend service for the **Auditorium Booking App**, a mobile applica
 
 The corresponding **React Native** mobile app is developed using **Expo**. An APK file has also been generated for Android users.  
 
-📌 To  **[Download APK]()** Mail me to :adithyakadukuntla@gmail.com 
+📌 To  **[Download APK]()** Mail to :adithyakadukuntla@gmail.com 
 
 ---
 
