@@ -16,7 +16,9 @@ mongoose.connect(process.env.MONGO_URI)
 // Define Schema & Model
 const userSchema = new mongoose.Schema({
   email: String,
-  password: String
+  password: String,
+  name: String,
+  phone: String,
 });
 const User = mongoose.model("User", userSchema);
 
@@ -43,12 +45,50 @@ app.get("/user/:email", async (req, res) => {
   res.json(user);
 });
 
+app.put("/user/:email", async (req, res) => {
+  //get the email fromparams and req .body of uer details and update the user with email
+  const email = req.params.email;
+  //using try and catc and send result
+  try {
+    const result = await User.findOneAndUpdate({ email }, req.body, { new: true });
+    res.json(result);
+  } catch (error) {
+    console.error("Error updating user:", error);
+    res.status(500).json({ error: "Error updating user" });
+  }
+});
+
+//api to chnage password
+app.put("/userpassword/:email", async (req, res) => {
+  //get the email fromparams and req .body of uer details and update the user with email
+  const email = req.params.email;
+  //using try and catc and send result
+  try {
+    const result = await User.findOneAndUpdate({ email }, { password: req.body.password }, { new: true });
+    //console.log("result",result);
+    res.json(result);
+  } catch (error) {
+    //console.log("Error updating password:", error);
+    res.status(500).json({ error: "Error updating password" });
+  }
+});
+
 // API Route to Add a User
 app.post("/users", async (req, res) => {
-  const { name, email } = req.body;
-  const newUser = new User({ name, email });
-  await newUser.save();
-  res.json(newUser);
+  const newuser = req.body;
+  try {
+    //check the user exists before psting
+    const userExists = await User.findOne({ email: newuser.email });
+    if (userExists) return res.send({ message: "User already exists" });
+    else {
+      const newUser = new User(newuser);
+      const result = await newUser.save();
+      res.send({ message: "User created successfully", user: newUser });
+    }
+  } catch (error) {
+    res.status(500).json({ error: "Error creating user" });
+  }
+
 });
 
 // API Route to Fetch Events for a specific Auditorium
@@ -64,9 +104,9 @@ app.get("/events/:audiname", async (req, res) => {
 
 // Book an Event
 app.post("/book", async (req, res) => {
-  const { eventName, startDate, endDate, session, isBooked, bookedBy, audi, contact, additionalInfo } = req.body;
+  const { eventName, startDate, endDate, session, isBooked, bookedBy, audi, contact, additionalInfo, useremail } = req.body;
   try {
-    const newBooking = new Event({ eventName, startDate, endDate, session, isBooked, bookedBy, audi, contact, additionalInfo });
+    const newBooking = new Event({ eventName, startDate, endDate, session, isBooked, bookedBy, audi, contact, additionalInfo, useremail });
     const result = await newBooking.save();
     res.json({ message: "Booking successful!", event: result });
   } catch (err) {
@@ -76,16 +116,16 @@ app.post("/book", async (req, res) => {
 });
 
 //delete the event 
-app.delete('/events/:id',async(req,res)=>{
-    const id = req.params.id;
-    //console.log(id)
+app.delete('/events/:id', async (req, res) => {
+  const id = req.params.id;
+  //console.log(id)
 
-    try{
-        await Event.findByIdAndDelete(id);
-        res.json({message:"Event deleted successfully!"});
-    }catch(err){
-        res.status(500).json({error:"Error deleting event"})
-    } 
+  try {
+    await Event.findByIdAndDelete(id);
+    res.json({ message: "Event deleted successfully!" });
+  } catch (err) {
+    res.status(500).json({ error: "Error deleting event" })
+  }
 })
 
 // Start Server
