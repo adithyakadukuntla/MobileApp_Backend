@@ -1,12 +1,28 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const dotenv = require("dotenv");
+const dotenv = require("dotenv").config();
+const http = require("http");
 
-dotenv.config();
+// Initialize Express app
 const app = express();
-app.use(express.json());
+
+// Create HTTP server
+const httpServer = http.createServer(app);
+
+// Initialize Socket.io
+const { Server } = require("socket.io");
+const io = new Server(httpServer, {
+  cors: {
+    origin: "*",  // Allow frontend connections
+    methods: ["GET", "POST"]
+  }
+});
+
+
+// Middleware
 app.use(cors());
+app.use(express.json()); 
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
@@ -35,13 +51,148 @@ const eventSchema = new mongoose.Schema({
   audi: { type: String, required: true },
   useremail: { type: String, required: true },
 });
-
 const Event = mongoose.model("Event", eventSchema);
+//Messages Schema
+const MessageSchema = new mongoose.Schema({
+  sender: { type: String },
+  receiver: { type: String,  },
+  message: { type: String,  },
+  chatType: { type: String, enum: ["team", "private"]  }, 
+  time: { type: Date, default: Date.now },
+});
+
+const Message = mongoose.model("Message", MessageSchema);
+
+
+
+// Socket.io Event Listeners
+io.on("connection", (socket) => {
+  console.log(`User connected: ${socket.id}`);
+   // Join a "team chat" room
+   socket.on("join_team_chat", () => {
+    socket.join("team_chat"); // Users join the same room for team chat
+    console.log(`User ${socket.id} joined team chat`);
+  });
+
+  // Listen for team messages
+  socket.on("join_team_chat", async () => {
+    console.log("User joined team chat");
+
+    // Fetch past messages from DB
+    try {
+      const pastMessages = await Message.find({ receiver: "team" }).sort({ time: 1 });
+
+      // Send past messages only to the newly joined user
+      socket.emit("past_team_messages", pastMessages);
+    } catch (err) {
+      console.error("Error fetching past messages:", err);
+    }
+  });
+
+  socket.on("team_message", async (data) => {
+    io.to("team_chat").emit("team_message", data);
+  
+    // Save the message in DB
+    try {
+      const newMessage = new Message({
+        sender: data.sender,
+        receiver: "team",
+        message: data.message,
+        time: data.time,
+      });
+      await newMessage.save();
+    } catch (err) {
+      console.error("Error saving team message:", err);
+    }
+  });
+  
+  // Listen for messages
+  socket.on("message", async (data) => {
+    const { sender, receiver, message } = data;
+
+    // Save message in DB
+    const newMessage = new Message({ sender, receiver, message });
+    await newMessage.save();
+
+    // Send message to the receiver in real-time
+    io.emit(`message_${receiver}`, { sender, receiver, message, time: newMessage.time });
+
+    // Notify receiver
+    io.emit(`notification_${receiver}`, { sender, message: "You have a new message" });
+  });
+
+  socket.on("team_message", async (msgData) => {
+    const newMessage = new Message({ ...msgData, chatType: "team" });
+    await newMessage.save();
+  
+    io.emit("team_message", msgData); // Broadcast only team messages
+  });
+  socket.on("team_message", async (data) => {
+  io.emit("new_team_message", data); // Emit globally (so all users get it)
+
+  // Save message in DB
+  try {
+    const newMessage = new Message({
+      sender: data.sender,
+      receiver: "team",
+      message: data.message,
+      time: data.time,
+    });
+    await newMessage.save();
+  } catch (err) {
+    console.error("Error saving team message:", err);
+  }
+});
+
+  
+
+  socket.on("disconnect", () => {
+    console.log(`User disconnected: ${socket.id}`);
+  });
+});
+
+// API to fetch previous messages
+app.get("/messages/:sender/:receiver", async (req, res) => {
+  const { sender, receiver } = req.params;
+  try {
+    const messages = await Message.find({
+      $or: [
+        { sender, receiver },
+        { sender: receiver, receiver: sender }
+      ]
+    }).sort({ time: 1 });
+
+    res.json(messages);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/messages/team", async (req, res) => {
+  const teamMessages = await Message.find({ chatType: "team" }).sort({ time: 1 });
+  res.json(teamMessages);
+});
+
+
+app.get('/version',async(req,res)=>{
+  try {
+    const version = require('./version.json');
+    //console.log(version);
+    res.json({ version });
+  } catch (error) {
+    res.status(500).json({ error: "Error fetching version" });
+  }
+})
+
+
+
+
 
 // API Route to Fetch Users
 app.get("/user/:email", async (req, res) => {
   const email = req.params.email;
   const user = await User.findOne({ email });
+  // console.log(user)
   res.json(user);
 });
 
@@ -55,6 +206,18 @@ app.put("/user/:email", async (req, res) => {
   } catch (error) {
     console.error("Error updating user:", error);
     res.status(500).json({ error: "Error updating user" });
+  }
+});
+
+//get all users 
+
+app.get("/users", async (req, res) => {
+  try {
+    const users = await User.find();
+   // console.log(users.length);
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: "Error fetching users" });
   }
 });
 
@@ -130,4 +293,6 @@ app.delete('/events/:id', async (req, res) => {
 
 // Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+httpServer.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
