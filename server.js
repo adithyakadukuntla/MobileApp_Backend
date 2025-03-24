@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const dotenv = require("dotenv").config();
 const http = require("http");
-
+// const blogRoutes=require('./routes/blog')
 // Initialize Express app
 const app = express();
 
@@ -23,6 +23,8 @@ const io = new Server(httpServer, {
 // Middleware
 app.use(cors());
 app.use(express.json()); 
+// app.use(express.static("public"));
+// app.use("/blog", blogRoutes);
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
@@ -57,6 +59,7 @@ const MessageSchema = new mongoose.Schema({
   sender: { type: String },
   receiver: { type: String,  },
   message: { type: String,  },
+  image: { type: String},
   chatType: { type: String, enum: ["team", "private"]  }, 
   time: { type: Date, default: Date.now },
 });
@@ -67,16 +70,16 @@ const Message = mongoose.model("Message", MessageSchema);
 
 // Socket.io Event Listeners
 io.on("connection", (socket) => {
-  console.log(`User connected: ${socket.id}`);
+  //console.log(`User connected: ${socket.id}`);
    // Join a "team chat" room
    socket.on("join_team_chat", () => {
     socket.join("team_chat"); // Users join the same room for team chat
-    console.log(`User ${socket.id} joined team chat`);
+    //console.log(`User ${socket.id} joined team chat`);
   });
 
   // Listen for team messages
   socket.on("join_team_chat", async () => {
-    console.log("User joined team chat");
+    //console.log("User joined team chat");
 
     // Fetch past messages from DB
     try {
@@ -147,7 +150,7 @@ io.on("connection", (socket) => {
   
 
   socket.on("disconnect", () => {
-    console.log(`User disconnected: ${socket.id}`);
+    //console.log(`User disconnected: ${socket.id}`);
   });
 });
 
@@ -165,6 +168,40 @@ app.get("/messages/:sender/:receiver", async (req, res) => {
     res.json(messages);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+//delete all messages 
+app.delete("/messages/:sender/:receiver", async (req, res) => {
+  const { sender, receiver } = req.params;
+  try {
+    const messages = await Message.deleteMany({
+      $or: [
+        { sender, receiver },
+        { sender: receiver, receiver: sender }
+      ]
+    })
+
+    res.json({ success: true, message: "Chat deleted successfully!" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+//delete selected messages 
+app.delete("/messages", async (req, res) => {
+  const { messageIds } = req.body; // Expect an array of message IDs
+console.log(messageIds);
+console.log("djujw",req.body)
+  if (!Array.isArray(messageIds) || messageIds.length === 0) {
+    return res.status(400).json({ success: false, message: "No messages selected for deletion." });
+  }
+
+  try {
+    await Message.deleteMany({ _id: { $in: messageIds } });
+
+    res.json({ success: true, message: "Selected messages deleted successfully!" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
