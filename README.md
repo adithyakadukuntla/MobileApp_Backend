@@ -13,6 +13,9 @@ This is the backend service for the **Auditorium Booking App**, a mobile applica
 
 ---
 
+
+### Using the version.json file. I am controlling the updates of the application, When the next squints are done then i update this with the newer version then user gets notification about the updates.
+
 ## 📲 Mobile App & APK  
 
 The corresponding **React Native** mobile app is developed using **Expo**. An APK file has also been generated for Android users.  
